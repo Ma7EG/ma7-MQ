@@ -1,0 +1,24 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Ma7MQ.Core", "src\Ma7MQ.Core\Ma7MQ.Core.csproj", "{4FA1286C-28FB-45AE-A80A-5D34C3754DFE}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Ma7MQ.Server", "src\Ma7MQ.Server\Ma7MQ.Server.csproj", "{68C9E743-A128-40F1-B88E-BCE13DFEAA04}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{4FA1286C-28FB-45AE-A80A-5D34C3754DFE}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4FA1286C-28FB-45AE-A80A-5D34C3754DFE}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4FA1286C-28FB-45AE-A80A-5D34C3754DFE}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4FA1286C-28FB-45AE-A80A-5D34C3754DFE}.Release|Any CPU.Build.0 = Release|Any CPU
+		{68C9E743-A128-40F1-B88E-BCE13DFEAA04}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{68C9E743-A128-40F1-B88E-BCE13DFEAA04}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{68C9E743-A128-40F1-B88E-BCE13DFEAA04}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{68C9E743-A128-40F1-B88E-BCE13DFEAA04}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal
