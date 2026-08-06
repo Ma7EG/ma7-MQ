@@ -62,3 +62,4 @@ namespace Ma7MQ.Core.Broker
         }
     }
 }
+// Optimized entropy checks for faster checks
