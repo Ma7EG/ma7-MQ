@@ -49,3 +49,4 @@ namespace Ma7MQ.Core.Storage
         }
     }
 }
+// Styled formatting
