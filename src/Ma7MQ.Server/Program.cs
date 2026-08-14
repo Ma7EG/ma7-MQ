@@ -74,3 +74,4 @@ app.MapGet("/api/stream/metrics", async (HttpContext context) =>
 });
 
 app.Run();
+// Simplified parsing
