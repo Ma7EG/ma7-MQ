@@ -1,0 +1,50 @@
+---
+interface Props {
+	title: string;
+}
+
+const { title } = Astro.props;
+---
+
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<link rel="preconnect" href="https://fonts.googleapis.com">
+		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+		<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+		<title>{title}</title>
+	</head>
+	<body>
+		<slot />
+	</body>
+</html>
+
+<style is:global>
+	:root {
+		--bg: hsl(240, 10%, 4%);
+		--card-bg: hsl(240, 10%, 7%);
+		--border: hsl(240, 6%, 15%);
+		--text: hsl(0, 0%, 98%);
+		--text-muted: hsl(240, 5%, 65%);
+		--primary: hsl(142, 76%, 36%); /* Premium Emerald instead of Purple */
+		--primary-hover: hsl(142, 76%, 45%);
+	}
+
+	* {
+		box-sizing: border-box;
+		margin: 0;
+		padding: 0;
+	}
+
+	body {
+		font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+		background-color: var(--bg);
+		color: var(--text);
+		min-height: 100vh;
+		display: flex;
+		flex-direction: column;
+		overflow-x: hidden;
+	}
+</style>
