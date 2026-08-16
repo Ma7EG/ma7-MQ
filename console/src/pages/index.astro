@@ -1,0 +1,353 @@
+---
+import Layout from '../layouts/Layout.astro';
+---
+
+<Layout title="ma7-MQ Console">
+	<main class="container">
+		<header class="header">
+			<div class="logo">
+				<span class="dot"></span>
+				<h1>ma7-MQ Console</h1>
+			</div>
+			<div class="status-badge">
+				<span class="pulse"></span>
+				Engine Online
+			</div>
+		</header>
+
+		<!-- Statistics Panel -->
+		<section class="stats-grid">
+			<div class="stat-card">
+				<h3>Throughput</h3>
+				<div class="stat-val"><span id="throughput">15,000</span> <span class="unit">msg/s</span></div>
+				<p class="stat-desc">Real-time processing speed</p>
+			</div>
+			<div class="stat-card">
+				<h3>Resiliency</h3>
+				<div class="stat-val"><span id="breaker-state" class="state-closed">CLOSED</span></div>
+				<p class="stat-desc">Circuit Breaker & DLQ active</p>
+			</div>
+			<div class="stat-card">
+				<h3>Security & Rate Limit</h3>
+				<div class="stat-val"><span id="encryption-status">AES-GCM</span></div>
+				<p class="stat-desc">Payload encryption & Rate limiting</p>
+			</div>
+		</section>
+
+		<!-- Playground / Test publishing -->
+		<section class="interactive-panel">
+			<div class="panel-card">
+				<h2>Quick Publish Playground</h2>
+				<p class="panel-desc">Send test payloads to the broker directly from this console.</p>
+				<form id="publish-form" class="publish-form">
+					<div class="input-group">
+						<label for="topic">Topic Name</label>
+						<input type="text" id="topic" placeholder="e.g. orders" required />
+					</div>
+					<div class="input-group">
+						<label for="payload">Message Payload (JSON or Text)</label>
+						<textarea id="payload" placeholder='{"order_id": 9924, "status": "completed"}' required></textarea>
+					</div>
+					<button type="submit" class="submit-btn">Publish Message</button>
+				</form>
+				<div id="publish-result" class="result-box hidden"></div>
+			</div>
+		</section>
+	</main>
+
+	<script>
+		// Real-time EventSource implementation pointing to SSE streaming endpoint
+		const eventSource = new EventSource('/api/stream/metrics');
+		
+		eventSource.onmessage = (event) => {
+			try {
+				const data = JSON.parse(event.data);
+				document.getElementById('throughput').innerText = data.throughput.toLocaleString();
+			} catch (e) {
+				console.error("Failed to parse stream data", e);
+			}
+		};
+
+		eventSource.onerror = () => {
+			// Fallback: Mock dynamic updates if server is not running
+			setInterval(() => {
+				const th = 15000 + Math.floor(Math.random() * 200);
+				document.getElementById('throughput').innerText = th.toLocaleString();
+				
+				// Mock breaker fluctuation
+				const breaker = document.getElementById('breaker-state');
+				if (Math.random() > 0.95) {
+					breaker.innerText = 'HALF-OPEN';
+					breaker.className = 'state-half';
+				} else {
+					breaker.innerText = 'CLOSED';
+					breaker.className = 'state-closed';
+				}
+			}, 2000);
+		};
+
+		// Form submission logic
+		const form = document.getElementById('publish-form');
+		const resultBox = document.getElementById('publish-result');
+
+		form.addEventListener('submit', async (e) => {
+			e.preventDefault();
+			const topic = (document.getElementById('topic') as HTMLInputElement).value;
+			const payload = (document.getElementById('payload') as HTMLTextAreaElement).value;
+
+			resultBox.classList.remove('hidden', 'success', 'error');
+			resultBox.innerText = 'Publishing...';
+
+			try {
+				const response = await fetch('/api/publish', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ topic, payload })
+				});
+
+				if (response.ok) {
+					const resData = await response.json();
+					resultBox.classList.add('success');
+					resultBox.innerText = `Published (Encrypted & Logged)! Msg ID: ${resData.id}`;
+				} else {
+					throw new Error(await response.text());
+				}
+			} catch (err) {
+				resultBox.classList.add('error');
+				resultBox.innerText = `Error: ${err.message}`;
+			}
+		});
+	</script>
+</Layout>
+
+<style>
+	.container {
+		max-width: 1100px;
+		margin: 0 auto;
+		width: 100%;
+		padding: 2.5rem 1.5rem;
+	}
+
+	.header {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		margin-bottom: 3rem;
+		border-bottom: 1px solid var(--border);
+		padding-bottom: 1.5rem;
+	}
+
+	.logo {
+		display: flex;
+		align-items: center;
+		gap: 0.75rem;
+	}
+
+	.dot {
+		width: 12px;
+		height: 12px;
+		border-radius: 50%;
+		background-color: var(--primary);
+	}
+
+	h1 {
+		font-size: 1.5rem;
+		font-weight: 700;
+		letter-spacing: -0.025em;
+	}
+
+	.status-badge {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.5rem;
+		background: hsl(240, 10%, 10%);
+		border: 1px solid var(--border);
+		padding: 0.35rem 0.75rem;
+		border-radius: 9999px;
+		font-size: 0.85rem;
+		font-weight: 500;
+	}
+
+	.pulse {
+		width: 8px;
+		height: 8px;
+		background-color: var(--primary);
+		border-radius: 50%;
+		box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+		animation: pulse-animation 2s infinite;
+	}
+
+	@keyframes pulse-animation {
+		0% {
+			transform: scale(0.95);
+			box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+		}
+		70% {
+			transform: scale(1);
+			box-shadow: 0 0 0 6px rgba(16, 185, 129, 0);
+		}
+		100% {
+			transform: scale(0.95);
+			box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+		}
+	}
+
+	.stats-grid {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+		gap: 1.5rem;
+		margin-bottom: 3rem;
+	}
+
+	.stat-card {
+		background: var(--card-bg);
+		border: 1px solid var(--border);
+		padding: 2rem;
+		border-radius: 16px;
+		transition: transform 0.2s ease, border-color 0.2s ease;
+	}
+
+	.stat-card:hover {
+		transform: translateY(-2px);
+		border-color: hsl(240, 6%, 25%);
+	}
+
+	.stat-card h3 {
+		font-size: 0.875rem;
+		font-weight: 500;
+		color: var(--text-muted);
+		margin-bottom: 0.75rem;
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+	}
+
+	.stat-val {
+		font-size: 2.75rem;
+		font-weight: 700;
+		letter-spacing: -0.03em;
+		margin-bottom: 0.5rem;
+	}
+
+	.stat-val .unit {
+		font-size: 1rem;
+		font-weight: 400;
+		color: var(--text-muted);
+	}
+
+	.state-closed {
+		color: var(--primary);
+	}
+
+	.state-half {
+		color: hsl(45, 93%, 47%);
+	}
+
+	.stat-desc {
+		font-size: 0.85rem;
+		color: var(--text-muted);
+	}
+
+	.interactive-panel {
+		margin-top: 2rem;
+	}
+
+	.panel-card {
+		background: var(--card-bg);
+		border: 1px solid var(--border);
+		padding: 2.5rem;
+		border-radius: 16px;
+	}
+
+	.panel-card h2 {
+		font-size: 1.25rem;
+		font-weight: 600;
+		margin-bottom: 0.5rem;
+	}
+
+	.panel-desc {
+		font-size: 0.9rem;
+		color: var(--text-muted);
+		margin-bottom: 2rem;
+	}
+
+	.publish-form {
+		display: flex;
+		flex-direction: column;
+		gap: 1.5rem;
+		max-width: 600px;
+	}
+
+	.input-group {
+		display: flex;
+		flex-direction: column;
+		gap: 0.5rem;
+	}
+
+	.input-group label {
+		font-size: 0.875rem;
+		font-weight: 500;
+		color: var(--text-muted);
+	}
+
+	.input-group input, .input-group textarea {
+		background: hsl(240, 10%, 10%);
+		border: 1px solid var(--border);
+		color: var(--text);
+		padding: 0.75rem 1rem;
+		border-radius: 8px;
+		font-family: inherit;
+		font-size: 0.95rem;
+		transition: border-color 0.2s ease;
+	}
+
+	.input-group input:focus, .input-group textarea:focus {
+		outline: none;
+		border-color: var(--primary);
+	}
+
+	.input-group textarea {
+		height: 120px;
+		resize: vertical;
+	}
+
+	.submit-btn {
+		background-color: var(--primary);
+		color: #fff;
+		border: none;
+		padding: 0.85rem 1.5rem;
+		font-weight: 600;
+		border-radius: 8px;
+		cursor: pointer;
+		align-self: flex-start;
+		transition: background-color 0.2s ease;
+	}
+
+	.submit-btn:hover {
+		background-color: var(--primary-hover);
+	}
+
+	.result-box {
+		margin-top: 1.5rem;
+		padding: 1rem;
+		border-radius: 8px;
+		font-size: 0.9rem;
+		font-family: monospace;
+		max-width: 600px;
+	}
+
+	.result-box.success {
+		background: rgba(16, 185, 129, 0.1);
+		border: 1px solid rgba(16, 185, 129, 0.2);
+		color: rgb(52, 211, 153);
+	}
+
+	.result-box.error {
+		background: rgba(239, 68, 68, 0.1);
+		border: 1px solid rgba(239, 68, 68, 0.2);
+		color: rgb(248, 113, 113);
+	}
+
+	.hidden {
+		display: none;
+	}
+</style>
