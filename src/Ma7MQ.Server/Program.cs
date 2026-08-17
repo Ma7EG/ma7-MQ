@@ -147,7 +147,7 @@ app.MapGet("/api/consumers", async (IStorageDriver store) =>
 });
 
 // Worker Consume Endpoint
-app.MapPost("/api/consume", async (HttpContext context, IStorageDriver store, IBrokerEngine engine) =>
+app.MapPost("/api/consume", async (HttpContext context, IBrokerEngine engine) =>
 {
     using var document = await JsonDocument.ParseAsync(context.Request.Body);
     var root = document.RootElement;
@@ -156,10 +156,16 @@ app.MapPost("/api/consume", async (HttpContext context, IStorageDriver store, IB
     var group = root.GetProperty("group").GetString() ?? "default";
     var consumerId = root.GetProperty("consumerId").GetString() ?? "default";
 
+    string filter = "";
+    if (root.TryGetProperty("filter", out var filterProp))
+    {
+        filter = filterProp.GetString() ?? "";
+    }
+
     await engine.RegisterConsumerAsync(group, consumerId);
     await engine.HeartbeatAsync(group, consumerId);
 
-    var messages = await store.GetMessagesAsync(topic, 10);
+    var messages = await engine.GetMessagesForGroupAsync(topic, group, consumerId, filter, 10);
     return Results.Ok(messages);
 });
 

@@ -15,6 +15,7 @@ namespace Ma7MQ.Core.Types
         public string ID { get; set; }
         public DateTime LastHeartbeat { get; set; }
         public ConsumerState State { get; set; }
+        public List<int> AssignedPartitions { get; set; } = new List<int>();
     }
 
     public class MQConsumerGroup
