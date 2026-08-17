@@ -183,10 +183,12 @@ import Layout from '../layouts/Layout.astro';
 			});
 		});
 
+		const API_BASE = window.location.port === '4321' ? 'http://localhost:8080' : '';
+
 		// Fetch methods
 		async function fetchTopics() {
 			try {
-				const response = await fetch('/api/topics');
+				const response = await fetch(`${API_BASE}/api/topics`);
 				if (response.ok) {
 					const topics = await response.json();
 					const tbody = document.getElementById('topics-list');
@@ -208,7 +210,7 @@ import Layout from '../layouts/Layout.astro';
 
 		async function fetchConsumers() {
 			try {
-				const response = await fetch('/api/consumers');
+				const response = await fetch(`${API_BASE}/api/consumers`);
 				if (response.ok) {
 					const consumers = await response.json();
 					const tbody = document.getElementById('connections-list');
@@ -238,7 +240,7 @@ import Layout from '../layouts/Layout.astro';
 		}, 3000);
 
 		// Real-time EventSource implementation pointing to SSE streaming endpoint
-		const eventSource = new EventSource('/api/stream/metrics');
+		const eventSource = new EventSource(`${API_BASE}/api/stream/metrics`);
 		const throughputElem = document.getElementById('throughput');
 		const topicsElem = document.getElementById('topics-count') || document.getElementById('topics');
 		const consumersElem = document.getElementById('consumers-count') || document.getElementById('consumers');
@@ -288,7 +290,7 @@ import Layout from '../layouts/Layout.astro';
 			}
 
 			try {
-				const response = await fetch('/api/publish', {
+				const response = await fetch(`${API_BASE}/api/publish`, {
 					method: 'POST',
 					headers: { 'Content-Type': 'application/json' },
 					body: JSON.stringify({ topic, payload })
@@ -327,7 +329,7 @@ import Layout from '../layouts/Layout.astro';
 			}
 
 			try {
-				const response = await fetch('/api/topics', {
+				const response = await fetch(`${API_BASE}/api/topics`, {
 					method: 'POST',
 					headers: { 'Content-Type': 'application/json' },
 					body: JSON.stringify({ name, partitions })
