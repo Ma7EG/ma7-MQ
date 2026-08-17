@@ -22,23 +22,47 @@ namespace Ma7MQ.Core.Storage
         public async Task SaveMessageAsync(MQMessage msg)
         {
             string json = JsonSerializer.Serialize(msg);
-            
-            await _db.StreamAddAsync($"mq:topic:{msg.Topic}", new[]
+            var transaction = _db.CreateTransaction();
+
+            string msgKey = $"mq:msg:{msg.ID}";
+            string topicMessagesKey = $"mq:topic:{msg.Topic}:messages";
+            string statsKey = $"mq:topic:{msg.Topic}:stats";
+
+            // Store message payload
+            transaction.StringSetAsync(msgKey, json);
+
+            // Add to topic ZSET chronologically
+            transaction.SortedSetAddAsync(topicMessagesKey, msg.ID, DateTime.UtcNow.Ticks);
+
+            // Increment stats Hash
+            transaction.HashIncrementAsync(statsKey, "message_count", 1);
+            transaction.HashIncrementAsync(statsKey, "bytes_in", msg.Payload.Length);
+
+            // Apply TTL if ExpiresAt is defined
+            if (msg.ExpiresAt.HasValue)
             {
-                new NameValueEntry("id", msg.ID),
-                new NameValueEntry("payload", json),
-                new NameValueEntry("timestamp", DateTime.UtcNow.Ticks)
-            });
+                var ttl = msg.ExpiresAt.Value - DateTime.UtcNow;
+                if (ttl > TimeSpan.Zero)
+                {
+                    transaction.KeyExpireAsync(msgKey, ttl);
+                }
+            }
+
+            await transaction.ExecuteAsync();
         }
 
         public async Task<List<MQMessage>> GetMessagesAsync(string topic, int limit)
         {
-            var entries = await _db.StreamReadAsync($"mq:topic:{topic}", "0-0", limit);
+            string topicMessagesKey = $"mq:topic:{topic}:messages";
+
+            // Read message IDs chronologically
+            var ids = await _db.SortedSetRangeByRankAsync(topicMessagesKey, 0, limit - 1);
             var list = new List<MQMessage>();
 
-            foreach (var entry in entries)
+            foreach (var id in ids)
             {
-                string json = entry["payload"];
+                string msgKey = $"mq:msg:{id}";
+                string json = await _db.StringGetAsync(msgKey);
                 if (string.IsNullOrEmpty(json)) continue;
 
                 var msg = JsonSerializer.Deserialize<MQMessage>(json);

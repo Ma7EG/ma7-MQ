@@ -36,6 +36,7 @@ namespace Ma7MQ.Core.Types
         public DeliveryGuarantee Guarantee { get; set; }
         public int Retries { get; set; }
         public DateTime CreatedAt { get; set; }
+        public DateTime? ExpiresAt { get; set; }
         public MessageStatus Status { get; set; }
 
         public MQMessage()
@@ -47,4 +48,3 @@ namespace Ma7MQ.Core.Types
         }
     }
 }
-// Refactored usings
