@@ -59,6 +59,56 @@ app.MapPost("/api/publish", async (HttpContext context, IBrokerEngine engine, Ma
     await context.Response.WriteAsJsonAsync(new { id = msg.ID, status = msg.Status.ToString() });
 });
 
+// Topics Endpoints
+app.MapGet("/api/topics", async (IStorageDriver store) =>
+{
+    var topics = await store.GetTopicNamesAsync();
+    return Results.Ok(topics);
+});
+
+app.MapPost("/api/topics", async (HttpContext context, IBrokerEngine engine) =>
+{
+    var topic = await JsonSerializer.DeserializeAsync<MQTopic>(context.Request.Body);
+    if (topic != null)
+    {
+        await engine.CreateTopicAsync(topic);
+        return Results.Created($"/api/topics/{topic.Name}", topic);
+    }
+    return Results.BadRequest("Invalid topic body");
+});
+
+// Consumers Endpoint
+app.MapGet("/api/consumers", async (IStorageDriver store) =>
+{
+    var consumers = await store.GetActiveConsumersAsync();
+    return Results.Ok(consumers);
+});
+
+// Worker Consume Endpoint
+app.MapPost("/api/consume", async (HttpContext context, IStorageDriver store, IBrokerEngine engine) =>
+{
+    using var document = await JsonDocument.ParseAsync(context.Request.Body);
+    var root = document.RootElement;
+    
+    var topic = root.GetProperty("topic").GetString() ?? "default";
+    var group = root.GetProperty("group").GetString() ?? "default";
+    var consumerId = root.GetProperty("consumerId").GetString() ?? "default";
+
+    // Auto-register and update telemetry
+    await engine.RegisterConsumerAsync(group, consumerId);
+    await engine.HeartbeatAsync(group, consumerId);
+
+    // Read stream messages
+    var messages = await store.GetMessagesAsync(topic, 10);
+    return Results.Ok(messages);
+});
+
+// Acknowledge Endpoint
+app.MapPost("/api/ack", (HttpContext context) =>
+{
+    return Results.Ok(new { status = "acknowledged" });
+});
+
 // SSE Streaming Metrics
 app.MapGet("/api/stream/metrics", async (HttpContext context, IStorageDriver store) =>
 {

@@ -79,24 +79,7 @@ import Layout from '../layouts/Layout.astro';
 						</tr>
 					</thead>
 					<tbody id="connections-list">
-						<tr>
-							<td>client-node-092x</td>
-							<td>SSE / HTTP</td>
-							<td><span class="badge active">active</span></td>
-							<td class="last-seen">Just now</td>
-						</tr>
-						<tr>
-							<td>client-worker-4a</td>
-							<td>TCP / Stream</td>
-							<td><span class="badge active">active</span></td>
-							<td class="last-seen">2s ago</td>
-						</tr>
-						<tr>
-							<td>client-logger-1</td>
-							<td>SSE / HTTP</td>
-							<td><span class="badge rebalancing">rebalancing</span></td>
-							<td class="last-seen">5s ago</td>
-						</tr>
+						<!-- Populated dynamically from API -->
 					</tbody>
 				</table>
 			</div>
@@ -116,24 +99,7 @@ import Layout from '../layouts/Layout.astro';
 						</tr>
 					</thead>
 					<tbody id="topics-list">
-						<tr>
-							<td>orders</td>
-							<td><span class="badge active">idle</span></td>
-							<td>14</td>
-							<td>Durable, DLQ Enabled</td>
-						</tr>
-						<tr>
-							<td>notifications</td>
-							<td><span class="badge active">idle</span></td>
-							<td>5</td>
-							<td>Durable</td>
-						</tr>
-						<tr>
-							<td>telemetry</td>
-							<td><span class="badge active">idle</span></td>
-							<td>24</td>
-							<td>Transient</td>
-						</tr>
+						<!-- Populated dynamically from API -->
 					</tbody>
 				</table>
 			</div>
@@ -211,8 +177,65 @@ import Layout from '../layouts/Layout.astro';
 				link.classList.add('active');
 				const contentElement = document.getElementById(`tab-content` ? `tab-${targetTab}` : '');
 				if (contentElement) contentElement.classList.add('active');
+
+				if (targetTab === 'topics') fetchTopics();
+				if (targetTab === 'connections') fetchConsumers();
 			});
 		});
+
+		// Fetch methods
+		async function fetchTopics() {
+			try {
+				const response = await fetch('/api/topics');
+				if (response.ok) {
+					const topics = await response.json();
+					const tbody = document.getElementById('topics-list');
+					if (tbody) {
+						tbody.innerHTML = topics.length === 0 ? '<tr><td colspan="4">No topics created yet.</td></tr>' : topics.map(topic => `
+							<tr>
+								<td><strong>${topic}</strong></td>
+								<td><span class="badge active">active</span></td>
+								<td>-</td>
+								<td>Durable, Stream</td>
+							</tr>
+						`).join('');
+					}
+				}
+			} catch (e) {
+				console.error("Failed to fetch topics", e);
+			}
+		}
+
+		async function fetchConsumers() {
+			try {
+				const response = await fetch('/api/consumers');
+				if (response.ok) {
+					const consumers = await response.json();
+					const tbody = document.getElementById('connections-list');
+					if (tbody) {
+						tbody.innerHTML = consumers.length === 0 ? '<tr><td colspan="4">No active consumer connections.</td></tr>' : consumers.map(c => `
+							<tr>
+								<td>${c.id}</td>
+								<td>REST / HTTP</td>
+								<td><span class="badge active">active</span></td>
+								<td>Just now</td>
+							</tr>
+						`).join('');
+					}
+				}
+			} catch (e) {
+				console.error("Failed to fetch consumers", e);
+			}
+		}
+
+		// Initial Fetch & Poll
+		fetchTopics();
+		fetchConsumers();
+		setInterval(() => {
+			const activeTab = document.querySelector('.tab-link.active')?.getAttribute('data-tab');
+			if (activeTab === 'topics') fetchTopics();
+			if (activeTab === 'connections') fetchConsumers();
+		}, 3000);
 
 		// Real-time EventSource implementation pointing to SSE streaming endpoint
 		const eventSource = new EventSource('/api/stream/metrics');
