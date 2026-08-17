@@ -1,3 +1,10 @@
 import { defineConfig } from 'astro/config';
 
-export default defineConfig({});
+// https://astro.build/config
+export default defineConfig({
+  server: {
+    proxy: {
+      '/api': 'http://localhost:8080'
+    }
+  }
+});

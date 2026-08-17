@@ -14,13 +14,26 @@ using Prometheus;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Load Redis connection string from environment variables
+string redisConn = Environment.GetEnvironmentVariable("REDIS_CONNECTION") ?? "localhost:6379";
+
 // Register Core MQ dependencies
-builder.Services.AddSingleton<IStorageDriver>(sp => new RedisDriver("localhost:6379"));
+builder.Services.AddSingleton<IStorageDriver>(sp => new RedisDriver(redisConn));
 builder.Services.AddSingleton<IBrokerEngine, BrokerEngine>();
 builder.Services.AddSingleton<Ma7MQ.Server.MetricsExporter>();
 
+// Enable CORS for frontend flexibility
+builder.Services.AddCors(options =>
+{
+    options.AddDefaultPolicy(policy =>
+    {
+        policy.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod();
+    });
+});
+
 var app = builder.Build();
 
+app.UseCors();
 app.UseRouting();
 
 // Prometheus Metrics Endpoint
@@ -29,6 +42,21 @@ app.UseHttpMetrics();
 
 // Start Throughput Calculator
 Telemetry.StartThroughputCalculator();
+
+// Health Check Endpoint (Production Ready)
+app.MapGet("/healthz", async (IStorageDriver store) =>
+{
+    try
+    {
+        // Pings Redis to check connectivity
+        await store.GetTopicsCountAsync();
+        return Results.Ok(new { status = "healthy", redis = "connected" });
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem($"Unhealthy: {ex.Message}");
+    }
+});
 
 // Publish endpoint
 app.MapPost("/api/publish", async (HttpContext context, IBrokerEngine engine, Ma7MQ.Server.MetricsExporter metrics) =>
