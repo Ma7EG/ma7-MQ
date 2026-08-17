@@ -149,7 +149,8 @@ namespace Ma7MQ.Core.Storage
             foreach (var member in members)
             {
                 string consumerID = member.ToString();
-                string groupName = await _db.StringGetAsync($"mq:consumer:{consumerID}:group") ?? "default";
+                var groupVal = await _db.StringGetAsync($"mq:consumer:{consumerID}:group");
+                string groupName = groupVal.HasValue ? groupVal.ToString() : "default";
                 var partitions = await GetAssignedPartitionsAsync(groupName, consumerID);
 
                 list.Add(new MQConsumer
@@ -193,7 +194,8 @@ namespace Ma7MQ.Core.Storage
 
         public async Task<string> GetGroupTopicAsync(string groupName)
         {
-            return await _db.StringGetAsync($"mq:group:{groupName}:topic") ?? "default";
+            var topicVal = await _db.StringGetAsync($"mq:group:{groupName}:topic");
+            return topicVal.HasValue ? topicVal.ToString() : "default";
         }
 
         public void Dispose()
