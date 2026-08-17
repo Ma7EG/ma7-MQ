@@ -8,7 +8,7 @@ using Ma7MQ.Core.Types;
 
 namespace Ma7MQ.Core.Storage
 {
-    public class RedisDriver : IStorageDriver
+    public class RedisDriver : IStorageDriver, IDisposable
     {
         private readonly ConnectionMultiplexer _redis;
         private readonly IDatabase _db;
@@ -103,6 +103,11 @@ namespace Ma7MQ.Core.Storage
             }
 
             return list;
+        }
+
+        public void Dispose()
+        {
+            _redis.Dispose();
         }
     }
 }

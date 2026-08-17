@@ -1,0 +1,46 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ma7-mq-server
+  labels:
+    app: ma7-mq
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: ma7-mq-server
+  template:
+    metadata:
+      labels:
+        app: ma7-mq-server
+    spec:
+      containers:
+      - name: mq-server
+        image: ma7-mq-server:latest
+        ports:
+        - containerPort: 8080
+          name: http
+        env:
+        - name: REDIS_CONNECTION
+          value: "redis-service:6379"
+        - name: OTEL_EXPORTER_OTLP_ENDPOINT
+          value: "http://jaeger-collector:4317"
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 10

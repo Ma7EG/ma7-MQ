@@ -7,14 +7,35 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Ma7MQ.Core.Broker;
 using Ma7MQ.Core.Storage;
 using Ma7MQ.Core.Types;
 using Prometheus;
+using OpenTelemetry.Trace;
+using OpenTelemetry.Resources;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Load Redis connection string from environment variables
+// Configure structured JSON logging for Loki/ELK compatibility
+builder.Logging.ClearProviders();
+builder.Logging.AddJsonConsole(options =>
+{
+    options.IncludeScopes = true;
+    options.TimestampFormat = "yyyy-MM-dd HH:mm:ss ";
+    options.JsonWriterOptions = new JsonWriterOptions { Indented = false };
+});
+
+// Configure Distributed Tracing (OpenTelemetry)
+builder.Services.AddOpenTelemetry()
+    .WithTracing(tracing => tracing
+        .AddSource("Ma7MQ.Broker")
+        .SetResourceBuilder(ResourceBuilder.CreateDefault().AddService("ma7-MQ"))
+        .AddAspNetCoreInstrumentation()
+        .AddOtlpExporter()
+        .AddConsoleExporter());
+
+// Load Redis connection string
 string redisConn = Environment.GetEnvironmentVariable("REDIS_CONNECTION") ?? "localhost:6379";
 
 // Register Core MQ dependencies
@@ -22,7 +43,7 @@ builder.Services.AddSingleton<IStorageDriver>(sp => new RedisDriver(redisConn));
 builder.Services.AddSingleton<IBrokerEngine, BrokerEngine>();
 builder.Services.AddSingleton<Ma7MQ.Server.MetricsExporter>();
 
-// Enable CORS for frontend flexibility
+// Enable CORS
 builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy =>
@@ -43,12 +64,25 @@ app.UseHttpMetrics();
 // Start Throughput Calculator
 Telemetry.StartThroughputCalculator();
 
-// Health Check Endpoint (Production Ready)
+// Configure Graceful Shutdown Lifecycle
+var lifetime = app.Services.GetRequiredService<IHostApplicationLifetime>();
+var storeDriver = app.Services.GetRequiredService<IStorageDriver>();
+
+lifetime.ApplicationStopping.Register(() =>
+{
+    app.Logger.LogInformation("Graceful shutdown initiated. Terminating Redis driver connection...");
+    if (storeDriver is IDisposable disposable)
+    {
+        disposable.Dispose();
+        app.Logger.LogInformation("Redis driver terminated cleanly.");
+    }
+});
+
+// Health Check Endpoint
 app.MapGet("/healthz", async (IStorageDriver store) =>
 {
     try
     {
-        // Pings Redis to check connectivity
         await store.GetTopicsCountAsync();
         return Results.Ok(new { status = "healthy", redis = "connected" });
     }
@@ -122,11 +156,9 @@ app.MapPost("/api/consume", async (HttpContext context, IStorageDriver store, IB
     var group = root.GetProperty("group").GetString() ?? "default";
     var consumerId = root.GetProperty("consumerId").GetString() ?? "default";
 
-    // Auto-register and update telemetry
     await engine.RegisterConsumerAsync(group, consumerId);
     await engine.HeartbeatAsync(group, consumerId);
 
-    // Read stream messages
     var messages = await store.GetMessagesAsync(topic, 10);
     return Results.Ok(messages);
 });
