@@ -23,13 +23,15 @@ const { title } = Astro.props;
 
 <style is:global>
 	:root {
-		--bg: hsl(240, 10%, 4%);
-		--card-bg: hsl(240, 10%, 7%);
-		--border: hsl(240, 6%, 15%);
-		--text: hsl(0, 0%, 98%);
-		--text-muted: hsl(240, 5%, 65%);
-		--primary: hsl(28, 100%, 53%); /* Orange-yellow main theme */
-		--primary-hover: hsl(38, 100%, 50%);
+		--bg: hsl(0, 0%, 98%);
+		--card-bg: hsl(0, 0%, 100%);
+		--border: hsl(0, 0%, 88%);
+		--text: #333333;
+		--text-muted: #666666;
+		--primary: #f5a623; /* RabbitMQ Orange-Yellow tint */
+		--primary-hover: #e09216;
+		--primary-light: #fef8eb;
+		--table-header-bg: #f4f6f8;
 	}
 
 	* {
@@ -40,7 +42,7 @@ const { title } = Astro.props;
 
 	body {
 		font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
-		background-color: var(--bg);
+		background-color: #f4f6f8;
 		color: var(--text);
 		min-height: 100vh;
 		display: flex;

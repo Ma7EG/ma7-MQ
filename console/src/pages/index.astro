@@ -2,101 +2,260 @@
 import Layout from '../layouts/Layout.astro';
 ---
 
-<Layout title="ma7-MQ Console">
-	<main class="container">
-		<header class="header">
-			<div class="logo">
-				<img src="/mq-logo.png" alt="ma7-MQ Logo" class="logo-img" />
-				<h1>ma7-MQ Console</h1>
+<Layout title="ma7-MQ Dashboard">
+	<!-- Top Bar -->
+	<header class="topbar">
+		<div class="brand">
+			<img src="/mq-logo.png" alt="ma7-MQ Logo" class="brand-logo" />
+			<span class="brand-title">ma7-MQ Management</span>
+		</div>
+		<div class="sys-info">
+			<div class="node-badge">Node: active@localhost</div>
+			<div class="status-indicator">
+				<span class="pulse-green"></span>
+				Running
 			</div>
-			<div class="status-badge">
-				<span class="pulse"></span>
-				Engine Online
-			</div>
-		</header>
+		</div>
+	</header>
 
-		<!-- Statistics Panel -->
-		<section class="stats-grid">
-			<div class="stat-card">
-				<h3>Throughput</h3>
-				<div class="stat-val"><span id="throughput">15,000</span> <span class="unit">msg/s</span></div>
-				<p class="stat-desc">Real-time processing speed</p>
-			</div>
-			<div class="stat-card">
-				<h3>Resiliency</h3>
-				<div class="stat-val"><span id="breaker-state" class="state-closed">CLOSED</span></div>
-				<p class="stat-desc">Circuit Breaker & DLQ active</p>
-			</div>
-			<div class="stat-card">
-				<h3>Security & Rate Limit</h3>
-				<div class="stat-val"><span id="encryption-status">AES-GCM</span></div>
-				<p class="stat-desc">Payload encryption & Rate limiting</p>
+	<!-- Main Container -->
+	<main class="dashboard-container">
+		<!-- Tabs Navigation -->
+		<nav class="tabs-nav">
+			<button class="tab-link active" data-tab="overview">Overview</button>
+			<button class="tab-link" data-tab="connections">Connections</button>
+			<button class="tab-link" data-tab="topics">Topics (Queues)</button>
+			<button class="tab-link" data-tab="admin">Admin / DLQ</button>
+		</nav>
+
+		<!-- Overview Tab Content -->
+		<section id="tab-overview" class="tab-content active">
+			<div class="overview-grid">
+				<!-- System Metrics -->
+				<div class="panel">
+					<h2>Global Telemetry</h2>
+					<div class="stats-row">
+						<div class="metric-box">
+							<div class="label">Ready Messages</div>
+							<div class="value" id="ready-msg">0</div>
+						</div>
+						<div class="metric-box">
+							<div class="label">Throughput</div>
+							<div class="value"><span id="throughput">15,000</span> <span class="unit">msg/s</span></div>
+						</div>
+						<div class="metric-box">
+							<div class="label">Consumers</div>
+							<div class="value" id="consumers-count">104</div>
+						</div>
+					</div>
+				</div>
+
+				<!-- Queue Rates / Stats -->
+				<div class="panel">
+					<h2>Message Rates</h2>
+					<div class="rates-chart-sim">
+						<div class="chart-bar" style="height: 60%"></div>
+						<div class="chart-bar" style="height: 75%"></div>
+						<div class="chart-bar" style="height: 45%"></div>
+						<div class="chart-bar" style="height: 90%"></div>
+						<div class="chart-bar" style="height: 80%"></div>
+						<div class="chart-bar" style="height: 85%"></div>
+					</div>
+				</div>
 			</div>
 		</section>
 
-		<!-- Playground / Test publishing -->
-		<section class="interactive-panel">
-			<div class="panel-card">
-				<h2>Quick Publish Playground</h2>
-				<p class="panel-desc">Send test payloads to the broker directly from this console.</p>
-				<form id="publish-form" class="publish-form">
-					<div class="input-group">
-						<label for="topic">Topic Name</label>
-						<input type="text" id="topic" placeholder="e.g. orders" required />
+		<!-- Connections Tab Content -->
+		<section id="tab-connections" class="tab-content">
+			<div class="panel">
+				<h2>Active Consumer Connections</h2>
+				<table class="mq-table">
+					<thead>
+						<tr>
+							<th>Connection / Client ID</th>
+							<th>Protocol</th>
+							<th>State</th>
+							<th>Heartbeat</th>
+						</tr>
+					</thead>
+					<tbody id="connections-list">
+						<tr>
+							<td>client-node-092x</td>
+							<td>SSE / HTTP</td>
+							<td><span class="badge active">active</span></td>
+							<td class="last-seen">Just now</td>
+						</tr>
+						<tr>
+							<td>client-worker-4a</td>
+							<td>TCP / Stream</td>
+							<td><span class="badge active">active</span></td>
+							<td class="last-seen">2s ago</td>
+						</tr>
+						<tr>
+							<td>client-logger-1</td>
+							<td>SSE / HTTP</td>
+							<td><span class="badge rebalancing">rebalancing</span></td>
+							<td class="last-seen">5s ago</td>
+						</tr>
+					</tbody>
+				</table>
+			</div>
+		</section>
+
+		<!-- Topics/Queues Tab Content -->
+		<section id="tab-topics" class="tab-content">
+			<div class="panel">
+				<h2>Active Topics / Queues</h2>
+				<table class="mq-table">
+					<thead>
+						<tr>
+							<th>Topic Name</th>
+							<th>Status</th>
+							<th>Consumer Count</th>
+							<th>Features</th>
+						</tr>
+					</thead>
+					<tbody id="topics-list">
+						<tr>
+							<td>orders</td>
+							<td><span class="badge active">idle</span></td>
+							<td>14</td>
+							<td>Durable, DLQ Enabled</td>
+						</tr>
+						<tr>
+							<td>notifications</td>
+							<td><span class="badge active">idle</span></td>
+							<td>5</td>
+							<td>Durable</td>
+						</tr>
+						<tr>
+							<td>telemetry</td>
+							<td><span class="badge active">idle</span></td>
+							<td>24</td>
+							<td>Transient</td>
+						</tr>
+					</tbody>
+				</table>
+			</div>
+
+			<div class="panel form-panel">
+				<h2>Add a New Topic / Queue</h2>
+				<form id="create-topic-form" class="mq-form">
+					<div class="form-group">
+						<label for="topic-name">Name</label>
+						<input type="text" id="topic-name" placeholder="e.g. shipping-orders" required />
 					</div>
-					<div class="input-group">
-						<label for="payload">Message Payload (JSON or Text)</label>
+					<div class="form-group">
+						<label for="topic-partitions">Partitions</label>
+						<input type="number" id="topic-partitions" value="1" min="1" required />
+					</div>
+					<button type="submit" class="btn">Create Topic</button>
+				</form>
+				<div id="topic-result" class="result-msg hidden"></div>
+			</div>
+
+			<!-- Quick Publish Playground -->
+			<div class="panel form-panel">
+				<h2>Publish Message Playground</h2>
+				<form id="publish-form" class="mq-form">
+					<div class="form-group">
+						<label for="pub-topic">Topic Name</label>
+						<input type="text" id="pub-topic" placeholder="e.g. orders" required />
+					</div>
+					<div class="form-group">
+						<label for="payload">Message Payload</label>
 						<textarea id="payload" placeholder='{"order_id": 9924, "status": "completed"}' required></textarea>
 					</div>
-					<button type="submit" class="submit-btn">Publish Message</button>
+					<button type="submit" class="btn">Publish Message</button>
 				</form>
-				<div id="publish-result" class="result-box hidden"></div>
+				<div id="publish-result" class="result-msg hidden"></div>
+			</div>
+		</section>
+
+		<!-- Admin Tab Content -->
+		<section id="tab-admin" class="tab-content">
+			<div class="panel">
+				<h2>System Administration</h2>
+				<div class="admin-grid">
+					<div class="admin-card">
+						<h3>Circuit Breaker</h3>
+						<p>Current Status: <span class="badge active">CLOSED</span></p>
+						<button class="btn btn-warning">Force Open Circuit</button>
+					</div>
+					<div class="admin-card">
+						<h3>Dead Letter Queue (DLQ)</h3>
+						<p>Redirect limit: <strong>5 attempts</strong></p>
+						<button class="btn">Flush DLQ messages</button>
+					</div>
+					<div class="admin-card">
+						<h3>Cluster Rate Limit</h3>
+						<p>Maximum Request Rate: <strong>10,000 req/s</strong></p>
+					</div>
+				</div>
 			</div>
 		</section>
 	</main>
 
 	<script>
+		// Tab Switching Logic
+		const tabLinks = document.querySelectorAll('.tab-link');
+		const tabContents = document.querySelectorAll('.tab-content');
+
+		tabLinks.forEach(link => {
+			link.addEventListener('click', () => {
+				const targetTab = link.getAttribute('data-tab');
+
+				tabLinks.forEach(l => l.classList.remove('active'));
+				tabContents.forEach(c => c.classList.remove('active'));
+
+				link.classList.add('active');
+				const contentElement = document.getElementById(`tab-content` ? `tab-${targetTab}` : '');
+				if (contentElement) contentElement.classList.add('active');
+			});
+		});
+
 		// Real-time EventSource implementation pointing to SSE streaming endpoint
 		const eventSource = new EventSource('/api/stream/metrics');
 		
 		eventSource.onmessage = (event) => {
 			try {
 				const data = JSON.parse(event.data);
-				document.getElementById('throughput').innerText = data.throughput.toLocaleString();
+				const throughputElem = document.getElementById('throughput');
+				if (throughputElem) throughputElem.innerText = data.throughput.toLocaleString();
 			} catch (e) {
 				console.error("Failed to parse stream data", e);
 			}
 		};
 
 		eventSource.onerror = () => {
-			// Fallback: Mock dynamic updates if server is not running
+			// Fallback mock updates
 			setInterval(() => {
 				const th = 15000 + Math.floor(Math.random() * 200);
-				document.getElementById('throughput').innerText = th.toLocaleString();
-				
-				// Mock breaker fluctuation
-				const breaker = document.getElementById('breaker-state');
-				if (Math.random() > 0.95) {
-					breaker.innerText = 'HALF-OPEN';
-					breaker.className = 'state-half';
-				} else {
-					breaker.innerText = 'CLOSED';
-					breaker.className = 'state-closed';
-				}
+				const throughputElem = document.getElementById('throughput');
+				if (throughputElem) throughputElem.innerText = th.toLocaleString();
+
+				// Mock fluctuating bars
+				const bars = document.querySelectorAll('.chart-bar');
+				bars.forEach(bar => {
+					const element = bar as HTMLElement;
+					element.style.height = `${20 + Math.floor(Math.random() * 75)}%`;
+				});
 			}, 2000);
 		};
 
-		// Form submission logic
-		const form = document.getElementById('publish-form');
-		const resultBox = document.getElementById('publish-result');
+		// Publish form logic
+		const publishForm = document.getElementById('publish-form');
+		const publishResult = document.getElementById('publish-result');
 
-		form.addEventListener('submit', async (e) => {
+		publishForm?.addEventListener('submit', async (e) => {
 			e.preventDefault();
-			const topic = (document.getElementById('topic') as HTMLInputElement).value;
+			const topic = (document.getElementById('pub-topic') as HTMLInputElement).value;
 			const payload = (document.getElementById('payload') as HTMLTextAreaElement).value;
 
-			resultBox.classList.remove('hidden', 'success', 'error');
-			resultBox.innerText = 'Publishing...';
+			if (publishResult) {
+				publishResult.classList.remove('hidden', 'success', 'error');
+				publishResult.innerText = 'Publishing...';
+			}
 
 			try {
 				const response = await fetch('/api/publish', {
@@ -107,247 +266,381 @@ import Layout from '../layouts/Layout.astro';
 
 				if (response.ok) {
 					const resData = await response.json();
-					resultBox.classList.add('success');
-					resultBox.innerText = `Published (Encrypted & Logged)! Msg ID: ${resData.id}`;
+					if (publishResult) {
+						publishResult.classList.add('success');
+						publishResult.innerText = `Published successfully! Msg ID: ${resData.id}`;
+					}
 				} else {
 					throw new Error(await response.text());
 				}
 			} catch (err) {
-				resultBox.classList.add('error');
-				resultBox.innerText = `Error: ${err.message}`;
+				if (publishResult) {
+					const error = err as Error;
+					publishResult.classList.add('error');
+					publishResult.innerText = `Error: ${error.message}`;
+				}
+			}
+		});
+
+		// Create Topic form logic
+		const createForm = document.getElementById('create-topic-form');
+		const topicResult = document.getElementById('topic-result');
+
+		createForm?.addEventListener('submit', async (e) => {
+			e.preventDefault();
+			const name = (document.getElementById('topic-name') as HTMLInputElement).value;
+			const partitions = parseInt((document.getElementById('topic-partitions') as HTMLInputElement).value);
+
+			if (topicResult) {
+				topicResult.classList.remove('hidden', 'success', 'error');
+				topicResult.innerText = 'Creating...';
+			}
+
+			try {
+				const response = await fetch('/api/topics', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ name, partitions })
+				});
+
+				if (response.ok) {
+					if (topicResult) {
+						topicResult.classList.add('success');
+						topicResult.innerText = `Topic "${name}" created successfully.`;
+					}
+				} else {
+					throw new Error(await response.text());
+				}
+			} catch (err) {
+				if (topicResult) {
+					const error = err as Error;
+					topicResult.classList.add('error');
+					topicResult.innerText = `Error: ${error.message}`;
+				}
 			}
 		});
 	</script>
+
+	<style>
+		.topbar {
+			background: #ffffff;
+			border-bottom: 3px solid var(--primary);
+			display: flex;
+			justify-content: space-between;
+			align-items: center;
+			padding: 0.75rem 2rem;
+			box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+		}
+
+		.brand {
+			display: flex;
+			align-items: center;
+			gap: 1rem;
+		}
+
+		.brand-logo {
+			height: 28px;
+			width: auto;
+		}
+
+		.brand-title {
+			font-size: 1.15rem;
+			font-weight: 700;
+			color: #333;
+		}
+
+		.sys-info {
+			display: flex;
+			align-items: center;
+			gap: 1.5rem;
+			font-size: 0.875rem;
+		}
+
+		.node-badge {
+			background: var(--table-header-bg);
+			border: 1px solid var(--border);
+			padding: 0.25rem 0.6rem;
+			border-radius: 4px;
+			color: var(--text-muted);
+		}
+
+		.status-indicator {
+			display: flex;
+			align-items: center;
+			gap: 0.4rem;
+			font-weight: 600;
+		}
+
+		.pulse-green {
+			width: 10px;
+			height: 10px;
+			background-color: #2ecc71;
+			border-radius: 50%;
+			box-shadow: 0 0 0 0 rgba(46, 204, 113, 0.7);
+			animation: pulse-green 2s infinite;
+		}
+
+		@keyframes pulse-green {
+			0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(46, 204, 113, 0.7); }
+			70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(46, 204, 113, 0); }
+			100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(46, 204, 113, 0); }
+		}
+
+		.dashboard-container {
+			max-width: 1200px;
+			width: 100%;
+			margin: 1.5rem auto;
+			padding: 0 1rem;
+		}
+
+		.tabs-nav {
+			display: flex;
+			gap: 0.25rem;
+			border-bottom: 2px solid var(--border);
+			margin-bottom: 1.5rem;
+		}
+
+		.tab-link {
+			background: #e2e8f0;
+			border: 1px solid var(--border);
+			border-bottom: none;
+			padding: 0.6rem 1.2rem;
+			font-family: inherit;
+			font-size: 0.9rem;
+			font-weight: 500;
+			cursor: pointer;
+			border-top-left-radius: 4px;
+			border-top-right-radius: 4px;
+			transition: all 0.2s ease;
+		}
+
+		.tab-link.active {
+			background: #ffffff;
+			border-color: var(--border) var(--border) transparent var(--border);
+			color: #333;
+			box-shadow: inset 0 3px 0 var(--primary);
+			font-weight: 600;
+		}
+
+		.tab-content {
+			display: none;
+		}
+
+		.tab-content.active {
+			display: block;
+		}
+
+		.panel {
+			background: #ffffff;
+			border: 1px solid var(--border);
+			border-radius: 6px;
+			padding: 1.5rem;
+			margin-bottom: 1.5rem;
+			box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+		}
+
+		.panel h2 {
+			font-size: 1.1rem;
+			font-weight: 600;
+			margin-bottom: 1.25rem;
+			color: #333;
+			border-bottom: 1px solid var(--border);
+			padding-bottom: 0.5rem;
+		}
+
+		.overview-grid {
+			display: grid;
+			grid-template-columns: 2fr 1fr;
+			gap: 1.5rem;
+		}
+
+		.stats-row {
+			display: grid;
+			grid-template-columns: repeat(3, 1fr);
+			gap: 1rem;
+		}
+
+		.metric-box {
+			background: var(--table-header-bg);
+			border: 1px solid var(--border);
+			padding: 1.25rem;
+			border-radius: 4px;
+		}
+
+		.metric-box .label {
+			font-size: 0.8rem;
+			text-transform: uppercase;
+			color: var(--text-muted);
+			margin-bottom: 0.5rem;
+			font-weight: 600;
+		}
+
+		.metric-box .value {
+			font-size: 1.75rem;
+			font-weight: 700;
+			color: #333;
+		}
+
+		.metric-box .unit {
+			font-size: 0.85rem;
+			font-weight: normal;
+			color: var(--text-muted);
+		}
+
+		.rates-chart-sim {
+			display: flex;
+			align-items: flex-end;
+			justify-content: space-between;
+			height: 100px;
+			padding: 0 1rem;
+		}
+
+		.chart-bar {
+			width: 12%;
+			background: var(--primary);
+			border-top-left-radius: 2px;
+			border-top-right-radius: 2px;
+			transition: height 0.5s ease;
+		}
+
+		.mq-table {
+			width: 100%;
+			border-collapse: collapse;
+			text-align: left;
+			font-size: 0.9rem;
+		}
+
+		.mq-table th, .mq-table td {
+			padding: 0.75rem 1rem;
+			border-bottom: 1px solid var(--border);
+		}
+
+		.mq-table th {
+			background: var(--table-header-bg);
+			font-weight: 600;
+			color: var(--text-muted);
+		}
+
+		.badge {
+			display: inline-flex;
+			padding: 0.15rem 0.5rem;
+			border-radius: 3px;
+			font-size: 0.75rem;
+			font-weight: 600;
+			text-transform: uppercase;
+		}
+
+		.badge.active {
+			background: #e6f9ed;
+			color: #2ecc71;
+		}
+
+		.badge.rebalancing {
+			background: #fef5e6;
+			color: #f5a623;
+		}
+
+		.form-panel {
+			max-width: 600px;
+		}
+
+		.mq-form {
+			display: flex;
+			flex-direction: column;
+			gap: 1rem;
+		}
+
+		.form-group {
+			display: flex;
+			flex-direction: column;
+			gap: 0.35rem;
+		}
+
+		.form-group label {
+			font-size: 0.85rem;
+			font-weight: 600;
+			color: var(--text-muted);
+		}
+
+		.form-group input, .form-group textarea {
+			border: 1px solid var(--border);
+			padding: 0.5rem 0.75rem;
+			border-radius: 4px;
+			font-family: inherit;
+			font-size: 0.9rem;
+		}
+
+		.form-group input:focus, .form-group textarea:focus {
+			outline: none;
+			border-color: var(--primary);
+		}
+
+		.btn {
+			background: var(--primary);
+			color: #ffffff;
+			border: none;
+			padding: 0.6rem 1.2rem;
+			font-family: inherit;
+			font-weight: 600;
+			border-radius: 4px;
+			cursor: pointer;
+			align-self: flex-start;
+			transition: background 0.2s ease;
+		}
+
+		.btn:hover {
+			background: var(--primary-hover);
+		}
+
+		.btn-warning {
+			background: #e74c3c;
+		}
+
+		.btn-warning:hover {
+			background: #c0392b;
+		}
+
+		.result-msg {
+			margin-top: 1rem;
+			padding: 0.75rem;
+			border-radius: 4px;
+			font-size: 0.85rem;
+			font-family: monospace;
+		}
+
+		.result-msg.success {
+			background: #e6f9ed;
+			color: #2ecc71;
+		}
+
+		.result-msg.error {
+			background: #fde8e8;
+			color: #e74c3c;
+		}
+
+		.hidden {
+			display: none;
+		}
+
+		.admin-grid {
+			display: grid;
+			grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+			gap: 1.5rem;
+		}
+
+		.admin-card {
+			background: var(--table-header-bg);
+			border: 1px solid var(--border);
+			padding: 1.25rem;
+			border-radius: 4px;
+			display: flex;
+			flex-direction: column;
+			gap: 0.75rem;
+		}
+
+		.admin-card h3 {
+			font-size: 0.95rem;
+			color: #333;
+		}
+	</style>
 </Layout>
-
-<style>
-	.container {
-		max-width: 1100px;
-		margin: 0 auto;
-		width: 100%;
-		padding: 2.5rem 1.5rem;
-	}
-
-	.header {
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		margin-bottom: 3rem;
-		border-bottom: 1px solid var(--border);
-		padding-bottom: 1.5rem;
-	}
-
-	.logo {
-		display: flex;
-		align-items: center;
-		gap: 0.75rem;
-	}
-
-	.logo-img {
-		height: 36px;
-		width: auto;
-		object-fit: contain;
-	}
-
-	h1 {
-		font-size: 1.5rem;
-		font-weight: 700;
-		letter-spacing: -0.025em;
-	}
-
-	.status-badge {
-		display: inline-flex;
-		align-items: center;
-		gap: 0.5rem;
-		background: hsl(240, 10%, 10%);
-		border: 1px solid var(--border);
-		padding: 0.35rem 0.75rem;
-		border-radius: 9999px;
-		font-size: 0.85rem;
-		font-weight: 500;
-	}
-
-	.pulse {
-		width: 8px;
-		height: 8px;
-		background-color: var(--primary);
-		border-radius: 50%;
-		box-shadow: 0 0 0 0 rgba(249, 115, 22, 0.7);
-		animation: pulse-animation 2s infinite;
-	}
-
-	@keyframes pulse-animation {
-		0% {
-			transform: scale(0.95);
-			box-shadow: 0 0 0 0 rgba(249, 115, 22, 0.7);
-		}
-		70% {
-			transform: scale(1);
-			box-shadow: 0 0 0 6px rgba(249, 115, 22, 0);
-		}
-		100% {
-			transform: scale(0.95);
-			box-shadow: 0 0 0 0 rgba(249, 115, 22, 0);
-		}
-	}
-
-	.stats-grid {
-		display: grid;
-		grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-		gap: 1.5rem;
-		margin-bottom: 3rem;
-	}
-
-	.stat-card {
-		background: var(--card-bg);
-		border: 1px solid var(--border);
-		padding: 2rem;
-		border-radius: 16px;
-		transition: transform 0.2s ease, border-color 0.2s ease;
-	}
-
-	.stat-card:hover {
-		transform: translateY(-2px);
-		border-color: hsl(240, 6%, 25%);
-	}
-
-	.stat-card h3 {
-		font-size: 0.875rem;
-		font-weight: 500;
-		color: var(--text-muted);
-		margin-bottom: 0.75rem;
-		text-transform: uppercase;
-		letter-spacing: 0.05em;
-	}
-
-	.stat-val {
-		font-size: 2.75rem;
-		font-weight: 700;
-		letter-spacing: -0.03em;
-		margin-bottom: 0.5rem;
-	}
-
-	.stat-val .unit {
-		font-size: 1rem;
-		font-weight: 400;
-		color: var(--text-muted);
-	}
-
-	.state-closed {
-		color: var(--primary);
-	}
-
-	.state-half {
-		color: hsl(45, 93%, 47%);
-	}
-
-	.stat-desc {
-		font-size: 0.85rem;
-		color: var(--text-muted);
-	}
-
-	.interactive-panel {
-		margin-top: 2rem;
-	}
-
-	.panel-card {
-		background: var(--card-bg);
-		border: 1px solid var(--border);
-		padding: 2.5rem;
-		border-radius: 16px;
-	}
-
-	.panel-card h2 {
-		font-size: 1.25rem;
-		font-weight: 600;
-		margin-bottom: 0.5rem;
-	}
-
-	.panel-desc {
-		font-size: 0.9rem;
-		color: var(--text-muted);
-		margin-bottom: 2rem;
-	}
-
-	.publish-form {
-		display: flex;
-		flex-direction: column;
-		gap: 1.5rem;
-		max-width: 600px;
-	}
-
-	.input-group {
-		display: flex;
-		flex-direction: column;
-		gap: 0.5rem;
-	}
-
-	.input-group label {
-		font-size: 0.875rem;
-		font-weight: 500;
-		color: var(--text-muted);
-	}
-
-	.input-group input, .input-group textarea {
-		background: hsl(240, 10%, 10%);
-		border: 1px solid var(--border);
-		color: var(--text);
-		padding: 0.75rem 1rem;
-		border-radius: 8px;
-		font-family: inherit;
-		font-size: 0.95rem;
-		transition: border-color 0.2s ease;
-	}
-
-	.input-group input:focus, .input-group textarea:focus {
-		outline: none;
-		border-color: var(--primary);
-	}
-
-	.input-group textarea {
-		height: 120px;
-		resize: vertical;
-	}
-
-	.submit-btn {
-		background-color: var(--primary);
-		color: #fff;
-		border: none;
-		padding: 0.85rem 1.5rem;
-		font-weight: 600;
-		border-radius: 8px;
-		cursor: pointer;
-		align-self: flex-start;
-		transition: background-color 0.2s ease;
-	}
-
-	.submit-btn:hover {
-		background-color: var(--primary-hover);
-	}
-
-	.result-box {
-		margin-top: 1.5rem;
-		padding: 1rem;
-		border-radius: 8px;
-		font-size: 0.9rem;
-		font-family: monospace;
-		max-width: 600px;
-	}
-
-	.result-box.success {
-		background: rgba(16, 185, 129, 0.1);
-		border: 1px solid rgba(16, 185, 129, 0.2);
-		color: rgb(52, 211, 153);
-	}
-
-	.result-box.error {
-		background: rgba(239, 68, 68, 0.1);
-		border: 1px solid rgba(239, 68, 68, 0.2);
-		color: rgb(248, 113, 113);
-	}
-
-	.hidden {
-		display: none;
-	}
-</style>
-<!-- Formatted elements -->
