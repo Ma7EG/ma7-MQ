@@ -9,6 +9,7 @@ namespace Ma7MQ.Core.Storage
     {
         private readonly IStorageDriver _driver;
         private readonly int _limit;
+        private readonly string _dlqPrefix = "dlq:";
 
         public DLQManager(IStorageDriver driver, int limit)
         {
@@ -22,24 +23,48 @@ namespace Ma7MQ.Core.Storage
             if (msg.Retries >= _limit)
             {
                 msg.Status = MessageStatus.DLQ;
+                
+                // Create enriched DLQ message preserving headers and payload
                 var dlqMsg = new MQMessage
                 {
                     ID = Guid.NewGuid().ToString(),
-                    Topic = $"dlq:{msg.Topic}",
+                    Topic = $"{_dlqPrefix}{msg.Topic}",
                     Payload = msg.Payload,
                     Headers = new Dictionary<string, string>(),
                     Priority = MessagePriority.High,
                     Guarantee = msg.Guarantee,
                     Retries = 0,
-                    CreatedAt = msg.CreatedAt,
+                    CreatedAt = DateTime.UtcNow,
                     Status = MessageStatus.DLQ
                 };
 
-                dlqMsg.Headers["original_id"] = msg.ID;
-                dlqMsg.Headers["original_topic"] = msg.Topic;
-                dlqMsg.Headers["dlq_reason"] = reason;
+                // Preserve original headers
+                if (msg.Headers != null)
+                {
+                    foreach (var header in msg.Headers)
+                    {
+                        dlqMsg.Headers[header.Key] = header.Value;
+                    }
+                }
 
+                // Add deep forensic metadata
+                dlqMsg.Headers["dlq_reason"] = reason;
+                dlqMsg.Headers["dlq_timestamp"] = DateTime.UtcNow.ToString("o");
+                dlqMsg.Headers["original_message_id"] = msg.ID;
+                dlqMsg.Headers["original_topic"] = msg.Topic;
+                dlqMsg.Headers["original_retry_count"] = msg.Retries.ToString();
+                dlqMsg.Headers["original_created_at"] = msg.CreatedAt.ToString("o");
+
+                // Save DLQ message
                 await _driver.SaveMessageAsync(dlqMsg);
+
+                // Update and store the original message status history
+                msg.Headers["dlq_moved_at"] = DateTime.UtcNow.ToString("o");
+                msg.Headers["dlq_target_topic"] = dlqMsg.Topic;
+                msg.Headers["dlq_target_id"] = dlqMsg.ID;
+                msg.Headers["dlq_reason"] = reason;
+
+                await _driver.SaveMessageAsync(msg);
             }
             else
             {
@@ -49,4 +74,3 @@ namespace Ma7MQ.Core.Storage
         }
     }
 }
-// Styled formatting
