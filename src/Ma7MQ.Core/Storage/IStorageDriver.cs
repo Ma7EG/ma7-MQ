@@ -11,5 +11,9 @@ namespace Ma7MQ.Core.Storage
         Task SaveTopicAsync(MQTopic topic);
         Task RegisterConsumerAsync(string groupName, string consumerID);
         Task UpdateHeartbeatAsync(string groupName, string consumerID);
+        Task<long> GetTopicsCountAsync();
+        Task<long> GetActiveConsumersCountAsync();
+        Task<List<string>> GetTopicNamesAsync();
+        Task<List<MQConsumer>> GetActiveConsumersAsync();
     }
 }

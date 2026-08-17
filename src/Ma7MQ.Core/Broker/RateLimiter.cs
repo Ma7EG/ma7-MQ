@@ -1,65 +1,60 @@
 using System;
-using System.Collections.Concurrent;
-using System.Threading;
+using System.Threading.Tasks;
+using StackExchange.Redis;
 
 namespace Ma7MQ.Core.Broker
 {
-    public class TokenBucket
-    {
-        private readonly object _lock = new();
-        private readonly double _rate; // tokens per second
-        private readonly double _capacity;
-        private double _tokens;
-        private DateTime _lastRefilled;
-
-        public TokenBucket(double rate, double capacity)
-        {
-            _rate = rate;
-            _capacity = capacity;
-            _tokens = capacity;
-            _lastRefilled = DateTime.UtcNow;
-        }
-
-        public bool Allow()
-        {
-            lock (_lock)
-            {
-                var now = DateTime.UtcNow;
-                var elapsed = (now - _lastRefilled).TotalSeconds;
-                _lastRefilled = now;
-
-                _tokens = _tokens + elapsed * _rate;
-                if (_tokens > _capacity)
-                {
-                    _tokens = _capacity;
-                }
-
-                if (_tokens >= 1.0)
-                {
-                    _tokens -= 1.0;
-                    return true;
-                }
-                return false;
-            }
-        }
-    }
-
     public class RateLimiter
     {
-        private readonly ConcurrentDictionary<string, TokenBucket> _clients = new();
+        private readonly IDatabase _db;
         private readonly double _rate;
         private readonly double _burst;
 
-        public RateLimiter(double rate, double burst)
+        public RateLimiter(IDatabase db, double rate, double burst)
         {
+            _db = db;
             _rate = rate;
             _burst = burst;
         }
 
-        public bool Allow(string clientID)
+        public async Task<bool> AllowAsync(string clientID)
         {
-            var bucket = _clients.GetOrAdd(clientID, _ => new TokenBucket(_rate, _burst));
-            return bucket.Allow();
+            string key = $"mq:limiter:{clientID}";
+            
+            var result = await _db.ScriptEvaluateAsync(@"
+                local key = KEYS[1]
+                local rate = tonumber(ARGV[1])
+                local capacity = tonumber(ARGV[2])
+                local now = tonumber(ARGV[3])
+                
+                local data = redis.call('HMGET', key, 'tokens', 'last_refill')
+                local tokens = tonumber(data[1])
+                local last_refill = tonumber(data[2])
+                
+                if not tokens then
+                    tokens = capacity
+                    last_refill = now
+                else
+                    local elapsed = (now - last_refill) / 10000000.0
+                    tokens = tokens + elapsed * rate
+                    if tokens > capacity then
+                        tokens = capacity
+                    end
+                end
+                
+                if tokens >= 1.0 then
+                    tokens = tokens - 1.0
+                    redis.call('HMSET', key, 'tokens', tokens, 'last_refill', now)
+                    redis.call('EXPIRE', key, 60)
+                    return 1
+                else
+                    redis.call('HMSET', key, 'tokens', tokens, 'last_refill', now)
+                    redis.call('EXPIRE', key, 60)
+                    return 0
+                end
+            ", new RedisKey[] { key }, new RedisValue[] { _rate, _burst, DateTime.UtcNow.Ticks });
+
+            return (int)result == 1;
         }
     }
 }

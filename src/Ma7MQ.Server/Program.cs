@@ -1,5 +1,7 @@
 using System;
+using System.IO;
 using System.Text.Json;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -25,6 +27,9 @@ app.UseRouting();
 app.UseMetricServer();
 app.UseHttpMetrics();
 
+// Start Throughput Calculator
+Telemetry.StartThroughputCalculator();
+
 // Publish endpoint
 app.MapPost("/api/publish", async (HttpContext context, IBrokerEngine engine, Ma7MQ.Server.MetricsExporter metrics) =>
 {
@@ -48,13 +53,14 @@ app.MapPost("/api/publish", async (HttpContext context, IBrokerEngine engine, Ma
     }
     
     metrics.MessagesPublished.Inc();
+    Telemetry.RecordMessage();
 
     context.Response.StatusCode = 202;
     await context.Response.WriteAsJsonAsync(new { id = msg.ID, status = msg.Status.ToString() });
 });
 
 // SSE Streaming Metrics
-app.MapGet("/api/stream/metrics", async (HttpContext context) =>
+app.MapGet("/api/stream/metrics", async (HttpContext context, IStorageDriver store) =>
 {
     context.Response.Headers.Append("Content-Type", "text/event-stream");
     context.Response.Headers.Append("Cache-Control", "no-cache");
@@ -62,16 +68,43 @@ app.MapGet("/api/stream/metrics", async (HttpContext context) =>
     context.Response.Headers.Append("Access-Control-Allow-Origin", "*");
 
     var writer = new StreamWriter(context.Response.Body);
-    var random = new Random();
 
     while (!context.RequestAborted.IsCancellationRequested)
     {
-        int throughput = 15000 + random.Next(200);
-        await writer.WriteAsync($"data: {{\"throughput\": {throughput}, \"topics\": 12, \"consumers\": 104}}\n\n");
+        long topics = await store.GetTopicsCountAsync();
+        long consumers = await store.GetActiveConsumersCountAsync();
+        long throughput = Telemetry.Throughput;
+
+        await writer.WriteAsync($"data: {{\"throughput\": {throughput}, \"topics\": {topics}, \"consumers\": {consumers}}}\n\n");
         await writer.FlushAsync();
-        await Task.Delay(2000);
+        await Task.Delay(1000);
     }
 });
 
 app.Run();
-// Simplified parsing
+
+public static class Telemetry
+{
+    private static long _publishCount = 0;
+    private static long _lastCalculatedThroughput = 0;
+    
+    public static void RecordMessage()
+    {
+        Interlocked.Increment(ref _publishCount);
+    }
+    
+    public static void StartThroughputCalculator()
+    {
+        Task.Run(async () =>
+        {
+            while (true)
+            {
+                long current = Interlocked.Exchange(ref _publishCount, 0);
+                _lastCalculatedThroughput = current;
+                await Task.Delay(1000);
+            }
+        });
+    }
+    
+    public static long Throughput => _lastCalculatedThroughput;
+}

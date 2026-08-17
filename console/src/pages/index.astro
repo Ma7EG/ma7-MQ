@@ -36,16 +36,16 @@ import Layout from '../layouts/Layout.astro';
 					<h2>Global Telemetry</h2>
 					<div class="stats-row">
 						<div class="metric-box">
-							<div class="label">Ready Messages</div>
-							<div class="value" id="ready-msg">0</div>
+							<div class="label">Active Topics</div>
+							<div class="value" id="topics-count">0</div>
 						</div>
 						<div class="metric-box">
 							<div class="label">Throughput</div>
-							<div class="value"><span id="throughput">15,000</span> <span class="unit">msg/s</span></div>
+							<div class="value"><span id="throughput">0</span> <span class="unit">msg/s</span></div>
 						</div>
 						<div class="metric-box">
 							<div class="label">Consumers</div>
-							<div class="value" id="consumers-count">104</div>
+							<div class="value" id="consumers-count">0</div>
 						</div>
 					</div>
 				</div>
@@ -216,31 +216,38 @@ import Layout from '../layouts/Layout.astro';
 
 		// Real-time EventSource implementation pointing to SSE streaming endpoint
 		const eventSource = new EventSource('/api/stream/metrics');
-		
+		const throughputElem = document.getElementById('throughput');
+		const topicsElem = document.getElementById('topics-count') || document.getElementById('topics');
+		const consumersElem = document.getElementById('consumers-count') || document.getElementById('consumers');
+		const statusText = document.querySelector('.status-indicator');
+		const pulseIndicator = document.querySelector('.pulse-green') as HTMLElement;
+
 		eventSource.onmessage = (event) => {
 			try {
 				const data = JSON.parse(event.data);
-				const throughputElem = document.getElementById('throughput');
 				if (throughputElem) throughputElem.innerText = data.throughput.toLocaleString();
+				if (topicsElem) topicsElem.innerText = data.topics;
+				if (consumersElem) consumersElem.innerText = data.consumers;
+				
+				if (statusText) statusText.innerHTML = '<span class="pulse-green"></span>Running';
+				if (pulseIndicator) pulseIndicator.style.backgroundColor = '#2ecc71';
 			} catch (e) {
 				console.error("Failed to parse stream data", e);
 			}
 		};
 
 		eventSource.onerror = () => {
-			// Fallback mock updates
-			setInterval(() => {
-				const th = 15000 + Math.floor(Math.random() * 200);
-				const throughputElem = document.getElementById('throughput');
-				if (throughputElem) throughputElem.innerText = th.toLocaleString();
-
-				// Mock fluctuating bars
-				const bars = document.querySelectorAll('.chart-bar');
-				bars.forEach(bar => {
-					const element = bar as HTMLElement;
-					element.style.height = `${20 + Math.floor(Math.random() * 75)}%`;
-				});
-			}, 2000);
+			if (throughputElem) throughputElem.innerText = '0';
+			if (topicsElem) topicsElem.innerText = '-';
+			if (consumersElem) consumersElem.innerText = '-';
+			if (statusText) statusText.innerHTML = '<span class="pulse-red"></span>Offline';
+			
+			// Fluctuating rates chart reset
+			const bars = document.querySelectorAll('.chart-bar');
+			bars.forEach(bar => {
+				const element = bar as HTMLElement;
+				element.style.height = `5%`;
+			});
 		};
 
 		// Publish form logic
@@ -384,6 +391,22 @@ import Layout from '../layouts/Layout.astro';
 			0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(46, 204, 113, 0.7); }
 			70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(46, 204, 113, 0); }
 			100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(46, 204, 113, 0); }
+		}
+
+		.pulse-red {
+			width: 10px;
+			height: 10px;
+			background-color: #e74c3c;
+			border-radius: 50%;
+			box-shadow: 0 0 0 0 rgba(231, 76, 60, 0.7);
+			animation: pulse-red 2s infinite;
+			display: inline-block;
+		}
+
+		@keyframes pulse-red {
+			0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(231, 76, 60, 0.7); }
+			70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(231, 76, 60, 0); }
+			100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(231, 76, 60, 0); }
 		}
 
 		.dashboard-container {
