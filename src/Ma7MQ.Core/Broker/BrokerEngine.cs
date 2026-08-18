@@ -9,6 +9,7 @@ namespace Ma7MQ.Core.Broker
     public interface IBrokerEngine
     {
         Task PublishAsync(MQMessage msg);
+        Task PublishBatchAsync(IList<MQMessage> messages);
         Task CreateTopicAsync(MQTopic topic);
         Task RegisterConsumerAsync(string groupName, string consumerID);
         Task HeartbeatAsync(string groupName, string consumerID);
@@ -20,9 +21,29 @@ namespace Ma7MQ.Core.Broker
     {
         private readonly IStorageDriver _store;
 
+        private readonly System.Threading.Channels.Channel<MQMessage> _channel;
+        private readonly System.Threading.CancellationTokenSource _cts = new();
+        private readonly Task[] _batchWorkers;
+
         public BrokerEngine(IStorageDriver store)
         {
             _store = store;
+
+            var channelOptions = new System.Threading.Channels.UnboundedChannelOptions
+            {
+                SingleReader = false,
+                SingleWriter = false,
+                AllowSynchronousContinuations = false
+            };
+            _channel = System.Threading.Channels.Channel.CreateUnbounded<MQMessage>(channelOptions);
+
+            int workerCount = Math.Max(2, Environment.ProcessorCount / 2);
+            _batchWorkers = new Task[workerCount];
+            for (int i = 0; i < workerCount; i++)
+            {
+                _batchWorkers[i] = Task.Run(ProcessBatchWorkerAsync);
+            }
+
             StartHeartbeatWorker();
         }
 
@@ -35,17 +56,87 @@ namespace Ma7MQ.Core.Broker
         {
             if (string.IsNullOrEmpty(msg.ID))
             {
-                msg.ID = Guid.NewGuid().ToString();
+                msg.ID = Guid.NewGuid().ToString("N");
             }
 
-            if (CompressionHelper.ShouldCompress(msg.Payload, 512))
+            // Only compress large payloads (>4KB) to avoid overhead on small messages
+            if (CompressionHelper.ShouldCompress(msg.Payload, 4096))
             {
                 var compressed = await CompressionHelper.CompressAsync(msg.Payload);
                 msg.Payload = compressed;
                 msg.Headers["x-compression"] = "gzip";
             }
 
-            await _store.SaveMessageAsync(msg);
+            if (!_channel.Writer.TryWrite(msg))
+            {
+                await _channel.Writer.WriteAsync(msg);
+            }
+        }
+
+        public async Task PublishBatchAsync(IList<MQMessage> messages)
+        {
+            for (int i = 0; i < messages.Count; i++)
+            {
+                var msg = messages[i];
+                if (string.IsNullOrEmpty(msg.ID))
+                {
+                    msg.ID = Guid.NewGuid().ToString("N");
+                }
+                if (!_channel.Writer.TryWrite(msg))
+                {
+                    await _channel.Writer.WriteAsync(msg);
+                }
+            }
+        }
+
+        private async Task ProcessBatchWorkerAsync()
+        {
+            var reader = _channel.Reader;
+            var batch = new List<MQMessage>(1000);
+            const int maxBatchSize = 1000;
+
+            while (!_cts.Token.IsCancellationRequested)
+            {
+                try
+                {
+                    if (await reader.WaitToReadAsync(_cts.Token))
+                    {
+                        while (batch.Count < maxBatchSize && reader.TryRead(out var msg))
+                        {
+                            batch.Add(msg);
+                        }
+
+                        if (batch.Count > 0)
+                        {
+                            await _store.SaveMessageBatchAsync(batch);
+                            batch.Clear();
+                        }
+                    }
+                }
+                catch (OperationCanceledException) when (_cts.IsCancellationRequested)
+                {
+                    break;
+                }
+                catch
+                {
+                    // Continue worker resilience
+                }
+            }
+
+            while (reader.TryRead(out var msg))
+            {
+                batch.Add(msg);
+                if (batch.Count >= maxBatchSize)
+                {
+                    try { await _store.SaveMessageBatchAsync(batch); } catch { }
+                    batch.Clear();
+                }
+            }
+            if (batch.Count > 0)
+            {
+                try { await _store.SaveMessageBatchAsync(batch); } catch { }
+                batch.Clear();
+            }
         }
 
         public async Task RegisterConsumerAsync(string groupName, string consumerID)

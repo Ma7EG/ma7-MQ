@@ -7,6 +7,7 @@ namespace Ma7MQ.Core.Storage
     public interface IStorageDriver
     {
         Task SaveMessageAsync(MQMessage msg);
+        Task SaveMessageBatchAsync(IList<MQMessage> messages);
         Task<List<MQMessage>> GetMessagesAsync(string topic, int limit);
         Task SaveTopicAsync(MQTopic topic);
         Task<MQTopic> GetTopicAsync(string name);
@@ -24,5 +25,9 @@ namespace Ma7MQ.Core.Storage
         Task<List<string>> GetConsumerGroupsAsync();
         Task RegisterConsumerGroupAsync(string groupName, string topicName);
         Task<string> GetGroupTopicAsync(string groupName);
+        Task DeleteTopicAsync(string name);
+        Task<long> GetTopicMessageCountAsync(string name);
+        Task<long> GetDLQMessageCountAsync();
+        Task FlushDLQAsync();
     }
 }

@@ -15,40 +15,89 @@ namespace Ma7MQ.Core.Storage
 
         public RedisDriver(string connectionString)
         {
-            _redis = ConnectionMultiplexer.Connect(connectionString);
+            var options = ConfigurationOptions.Parse(connectionString);
+            options.AbortOnConnectFail = true;
+            options.ConnectTimeout = 1000;
+            options.AsyncTimeout = 5000;
+            options.SyncTimeout = 2000;
+            options.ConnectRetry = 1;
+            _redis = ConnectionMultiplexer.Connect(options);
             _db = _redis.GetDatabase();
+        }
+
+        public bool IsHealthy()
+        {
+            try
+            {
+                return _redis != null && _redis.IsConnected;
+            }
+            catch
+            {
+                return false;
+            }
         }
 
         public async Task SaveMessageAsync(MQMessage msg)
         {
             string json = JsonSerializer.Serialize(msg);
-            var transaction = _db.CreateTransaction();
+            var batch = _db.CreateBatch();
 
             string msgKey = $"mq:msg:{msg.ID}";
             string topicMessagesKey = $"mq:topic:{msg.Topic}:messages";
             string statsKey = $"mq:topic:{msg.Topic}:stats";
 
-            // Store message payload
-            transaction.StringSetAsync(msgKey, json);
+            var t1 = batch.StringSetAsync(msgKey, json);
+            var t2 = batch.SortedSetAddAsync(topicMessagesKey, msg.ID, DateTime.UtcNow.Ticks);
+            // Fire-and-forget for non-critical stats
+            batch.HashIncrementAsync(statsKey, "message_count", 1, CommandFlags.FireAndForget);
+            batch.HashIncrementAsync(statsKey, "bytes_in", msg.Payload.Length, CommandFlags.FireAndForget);
 
-            // Add to topic ZSET chronologically
-            transaction.SortedSetAddAsync(topicMessagesKey, msg.ID, DateTime.UtcNow.Ticks);
-
-            // Increment stats Hash
-            transaction.HashIncrementAsync(statsKey, "message_count", 1);
-            transaction.HashIncrementAsync(statsKey, "bytes_in", msg.Payload.Length);
-
-            // Apply TTL if ExpiresAt is defined
             if (msg.ExpiresAt.HasValue)
             {
                 var ttl = msg.ExpiresAt.Value - DateTime.UtcNow;
                 if (ttl > TimeSpan.Zero)
                 {
-                    transaction.KeyExpireAsync(msgKey, ttl);
+                    batch.KeyExpireAsync(msgKey, ttl, CommandFlags.FireAndForget);
                 }
             }
 
-            await transaction.ExecuteAsync();
+            batch.Execute();
+            await Task.WhenAll(t1, t2);
+        }
+
+        public async Task SaveMessageBatchAsync(IList<MQMessage> messages)
+        {
+            if (messages.Count == 0) return;
+
+            var batch = _db.CreateBatch();
+            var criticalTasks = new List<Task>(messages.Count * 2);
+            long nowTicks = DateTime.UtcNow.Ticks;
+
+            foreach (var msg in messages)
+            {
+                string json = JsonSerializer.Serialize(msg);
+                string msgKey = $"mq:msg:{msg.ID}";
+                string topicMessagesKey = $"mq:topic:{msg.Topic}:messages";
+                string statsKey = $"mq:topic:{msg.Topic}:stats";
+
+                criticalTasks.Add(batch.StringSetAsync(msgKey, json));
+                criticalTasks.Add(batch.SortedSetAddAsync(topicMessagesKey, msg.ID, nowTicks++));
+
+                batch.HashIncrementAsync(statsKey, "message_count", 1, CommandFlags.FireAndForget);
+                batch.HashIncrementAsync(statsKey, "bytes_in", msg.Payload.Length, CommandFlags.FireAndForget);
+
+                if (msg.ExpiresAt.HasValue)
+                {
+                    var ttl = msg.ExpiresAt.Value - DateTime.UtcNow;
+                    if (ttl > TimeSpan.Zero)
+                    {
+                        batch.KeyExpireAsync(msgKey, ttl, CommandFlags.FireAndForget);
+                    }
+                }
+            }
+
+            batch.Execute();
+            await Task.WhenAll(criticalTasks);
         }
 
         public async Task<List<MQMessage>> GetMessagesAsync(string topic, int limit)
@@ -78,8 +127,11 @@ namespace Ma7MQ.Core.Storage
         public async Task SaveTopicAsync(MQTopic topic)
         {
             string json = JsonSerializer.Serialize(topic);
-            await _db.StringSetAsync($"mq:meta:topic:{topic.Name}", json);
-            await _db.SetAddAsync("mq:meta:topics:list", topic.Name);
+            var batch = _db.CreateBatch();
+            var t1 = batch.StringSetAsync($"mq:meta:topic:{topic.Name}", json);
+            var t2 = batch.SetAddAsync("mq:meta:topics:list", topic.Name);
+            batch.Execute();
+            await Task.WhenAll(t1, t2);
         }
 
         public async Task<MQTopic> GetTopicAsync(string name)
@@ -91,20 +143,24 @@ namespace Ma7MQ.Core.Storage
 
         public async Task RegisterConsumerAsync(string groupName, string consumerID)
         {
-            await _db.SetAddAsync($"mq:group:{groupName}:consumers", consumerID);
-            await _db.SetAddAsync("mq:meta:consumers:list", consumerID);
-            
-            // Map consumer to its parent group
-            await _db.StringSetAsync($"mq:consumer:{consumerID}:group", groupName);
+            var batch = _db.CreateBatch();
+            var t1 = batch.SetAddAsync($"mq:group:{groupName}:consumers", consumerID);
+            var t2 = batch.SetAddAsync("mq:meta:consumers:list", consumerID);
+            var t3 = batch.StringSetAsync($"mq:consumer:{consumerID}:group", groupName);
+            batch.Execute();
+            await Task.WhenAll(t1, t2, t3);
         }
 
         public async Task RemoveConsumerAsync(string groupName, string consumerID)
         {
-            await _db.SetRemoveAsync($"mq:group:{groupName}:consumers", consumerID);
-            await _db.SetRemoveAsync("mq:meta:consumers:list", consumerID);
-            await _db.KeyDeleteAsync($"mq:group:{groupName}:consumer:{consumerID}:heartbeat");
-            await _db.KeyDeleteAsync($"mq:group:{groupName}:consumer:{consumerID}:partitions");
-            await _db.KeyDeleteAsync($"mq:consumer:{consumerID}:group");
+            var batch = _db.CreateBatch();
+            var t1 = batch.SetRemoveAsync($"mq:group:{groupName}:consumers", consumerID);
+            var t2 = batch.SetRemoveAsync("mq:meta:consumers:list", consumerID);
+            batch.KeyDeleteAsync($"mq:group:{groupName}:consumer:{consumerID}:heartbeat", CommandFlags.FireAndForget);
+            batch.KeyDeleteAsync($"mq:group:{groupName}:consumer:{consumerID}:partitions", CommandFlags.FireAndForget);
+            batch.KeyDeleteAsync($"mq:consumer:{consumerID}:group", CommandFlags.FireAndForget);
+            batch.Execute();
+            await Task.WhenAll(t1, t2);
         }
 
         public async Task UpdateHeartbeatAsync(string groupName, string consumerID)
@@ -188,14 +244,43 @@ namespace Ma7MQ.Core.Storage
 
         public async Task RegisterConsumerGroupAsync(string groupName, string topicName)
         {
-            await _db.SetAddAsync("mq:meta:groups:list", groupName);
-            await _db.StringSetAsync($"mq:group:{groupName}:topic", topicName);
+            var batch = _db.CreateBatch();
+            var t1 = batch.SetAddAsync("mq:meta:groups:list", groupName);
+            var t2 = batch.StringSetAsync($"mq:group:{groupName}:topic", topicName);
+            batch.Execute();
+            await Task.WhenAll(t1, t2);
         }
 
         public async Task<string> GetGroupTopicAsync(string groupName)
         {
             var topicVal = await _db.StringGetAsync($"mq:group:{groupName}:topic");
             return topicVal.HasValue ? topicVal.ToString() : "default";
+        }
+
+        public async Task DeleteTopicAsync(string name)
+        {
+            var batch = _db.CreateBatch();
+            batch.KeyDeleteAsync($"mq:meta:topic:{name}", CommandFlags.FireAndForget);
+            batch.SetRemoveAsync("mq:meta:topics:list", name, CommandFlags.FireAndForget);
+            batch.KeyDeleteAsync($"mq:topic:{name}:messages", CommandFlags.FireAndForget);
+            batch.KeyDeleteAsync($"mq:topic:{name}:stats", CommandFlags.FireAndForget);
+            batch.Execute();
+            await Task.CompletedTask;
+        }
+
+        public async Task<long> GetTopicMessageCountAsync(string name)
+        {
+            return await _db.SortedSetLengthAsync($"mq:topic:{name}:messages");
+        }
+
+        public async Task<long> GetDLQMessageCountAsync()
+        {
+            return await _db.SortedSetLengthAsync("mq:topic:dlq:messages");
+        }
+
+        public async Task FlushDLQAsync()
+        {
+            await _db.KeyDeleteAsync("mq:topic:dlq:messages");
         }
 
         public void Dispose()

@@ -13,7 +13,7 @@ const { title } = Astro.props;
 		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 		<link rel="preconnect" href="https://fonts.googleapis.com">
 		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-		<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+		<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 		<title>{title}</title>
 	</head>
 	<body>
@@ -23,15 +23,32 @@ const { title } = Astro.props;
 
 <style is:global>
 	:root {
-		--bg: hsl(0, 0%, 98%);
-		--card-bg: hsl(0, 0%, 100%);
-		--border: hsl(0, 0%, 88%);
-		--text: #333333;
-		--text-muted: #666666;
-		--primary: #f5a623; /* RabbitMQ Orange-Yellow tint */
-		--primary-hover: #e09216;
-		--primary-light: #fef8eb;
-		--table-header-bg: #f4f6f8;
+		--bg: #f8fafc;
+		--sidebar-bg: #0f172a;
+		--sidebar-text: #94a3b8;
+		--sidebar-text-active: #ffffff;
+		--sidebar-hover: #1e293b;
+		--card-bg: #ffffff;
+		--border: #e2e8f0;
+		--border-subtle: #f1f5f9;
+		--text: #0f172a;
+		--text-muted: #64748b;
+		--text-light: #94a3b8;
+		--primary: #f5b800; /* Ma7-MQ Amber Yellow */
+		--primary-hover: #e0a500;
+		--primary-dark: #b88600;
+		--primary-light: #fef9e7;
+		--primary-glow: rgba(245, 184, 0, 0.18);
+		--success: #10b981;
+		--success-bg: #ecfdf5;
+		--warning: #f59e0b;
+		--warning-bg: #fffbeb;
+		--danger: #ef4444;
+		--danger-bg: #fef2f2;
+		--info: #3b82f6;
+		--info-bg: #eff6ff;
+		--table-header-bg: #f8fafc;
+		--code-bg: #0d1117;
 	}
 
 	* {
@@ -41,12 +58,33 @@ const { title } = Astro.props;
 	}
 
 	body {
-		font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
-		background-color: #f4f6f8;
+		font-family: 'Inter', system-ui, -apple-system, sans-serif;
+		background-color: var(--bg);
 		color: var(--text);
 		min-height: 100vh;
 		display: flex;
 		flex-direction: column;
 		overflow-x: hidden;
+		-webkit-font-smoothing: antialiased;
+	}
+
+	code, pre, .mono {
+		font-family: 'JetBrains Mono', 'Consolas', monospace;
+	}
+
+	/* Scrollbar custom styling */
+	::-webkit-scrollbar {
+		width: 6px;
+		height: 6px;
+	}
+	::-webkit-scrollbar-track {
+		background: #f1f5f9;
+	}
+	::-webkit-scrollbar-thumb {
+		background: #cbd5e1;
+		border-radius: 3px;
+	}
+	::-webkit-scrollbar-thumb:hover {
+		background: #94a3b8;
 	}
 </style>
